@@ -1,0 +1,2430 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ПРОЯВКА // Paper Scrapbook — AI-скрапбук прожитых дней</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500;1,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
+  <style>
+    :root {
+      --bg-room: #12090b;
+      --bg-panel: #1b0f12;
+      --bg-elevated: #28161a;
+      --ink-light: #f6ede8;
+      --ink-muted: #baa5a0;
+      --amber: #e89b3c;
+      --amber-soft: rgba(232, 155, 60, 0.16);
+      --line: rgba(246, 237, 232, 0.12);
+      --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+      --font-serif: 'Cormorant Garamond', Georgia, serif;
+      --font-hand: 'Caveat', cursive;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg-room);
+      color: var(--ink-light);
+      font-family: var(--font-sans);
+      min-height: 100vh;
+      overflow-x: hidden;
+      background-image:
+        radial-gradient(circle at 18% 15%, rgba(190, 38, 51, 0.22), transparent 44%),
+        radial-gradient(circle at 82% 85%, rgba(232, 155, 60, 0.11), transparent 46%),
+        radial-gradient(rgba(246, 237, 232, 0.04) 1px, transparent 0);
+      background-size: 100% 100%, 100% 100%, 24px 24px;
+    }
+
+    .app {
+      max-width: 1380px;
+      margin: 0 auto;
+      padding: 18px 20px 92px;
+    }
+
+    .topbar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .brand-block { display: flex; align-items: center; gap: 10px; }
+
+    .circle-icon-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 1px solid var(--line);
+      background: var(--bg-panel);
+      color: var(--ink-light);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      cursor: pointer;
+      transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+    }
+
+    .circle-icon-btn:hover, .circle-icon-btn.active {
+      border-color: var(--amber);
+      background: var(--bg-elevated);
+      transform: scale(1.07);
+    }
+
+    .journal-header-center { text-align: center; }
+
+    .journal-title {
+      font-family: var(--font-serif);
+      font-size: 32px;
+      font-weight: 600;
+      line-height: 1;
+    }
+
+    .journal-counter {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--amber);
+      margin-top: 4px;
+    }
+
+    .pill-btn {
+      font-family: var(--font-sans);
+      font-size: 12.5px;
+      font-weight: 500;
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: var(--bg-panel);
+      color: var(--ink-light);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .pill-btn:hover:not(:disabled) {
+      border-color: var(--amber);
+      background: var(--bg-elevated);
+      transform: translateY(-1px);
+    }
+
+    .pill-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .pill-btn.amber {
+      background: var(--amber);
+      color: #160c08;
+      border-color: var(--amber);
+      font-weight: 600;
+    }
+
+    .pill-btn.amber:hover:not(:disabled) {
+      background: #f4ae52;
+      box-shadow: 0 0 24px rgba(232, 155, 60, 0.42);
+    }
+
+    .ai-badge-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #ef4444;
+    }
+    .ai-badge-dot.connected { background: #10b981; box-shadow: 0 0 8px #10b981; }
+
+    /* =====================================================================
+       ВКЛАДКА 1: ВЕЕР СТРАНИЦ PAPER + УНИКАЛЬНЫЙ AI-СКРАПБУК
+       ===================================================================== */
+    .paper-stage-view { display: block; position: relative; }
+    .paper-stage-view.hidden { display: none; }
+
+    .fan-deck-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 14px 44px 20px;
+      perspective: 1800px;
+    }
+
+    .fan-wing {
+      position: absolute;
+      top: 26px;
+      bottom: 32px;
+      width: 140px;
+      display: flex;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .fan-wing.left { left: 26px; }
+    .fan-wing.right { right: 26px; justify-content: flex-end; }
+
+    .fan-leaf {
+      width: 58px;
+      height: 100%;
+      border-radius: 18px;
+      border: 1px solid rgba(0, 0, 0, 0.22);
+      box-shadow: -8px 12px 26px rgba(0, 0, 0, 0.55);
+      pointer-events: auto;
+      cursor: pointer;
+      transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .fan-wing.left .fan-leaf { margin-right: -34px; }
+    .fan-wing.right .fan-leaf { margin-left: -34px; }
+    .fan-wing.left .fan-leaf:hover { transform: translateX(-12px) rotateY(10deg) scale(1.03); }
+    .fan-wing.right .fan-leaf:hover { transform: translateX(12px) rotateY(-10deg) scale(1.03); }
+
+    @media (max-width: 1160px) {
+      .fan-wing { display: none; }
+      .fan-deck-wrapper { padding: 8px 0 16px; }
+    }
+
+    .scrapbook-spread {
+      width: 100%;
+      max-width: 1120px;
+      min-height: 675px;
+      border-radius: 26px;
+      display: grid;
+      grid-template-columns: 440px 1fr;
+      position: relative;
+      z-index: 5;
+      box-shadow: 0 38px 95px rgba(0, 0, 0, 0.88), 0 0 0 1px rgba(255, 255, 255, 0.14);
+      transform-style: preserve-3d;
+      transition: background 0.45s ease, color 0.45s ease;
+    }
+
+    .scrapbook-spread.flip-next { animation: pageFlipNext 0.55s cubic-bezier(0.22, 1, 0.36, 1); }
+    .scrapbook-spread.flip-prev { animation: pageFlipPrev 0.55s cubic-bezier(0.22, 1, 0.36, 1); }
+
+    @keyframes pageFlipNext {
+      0% { transform: rotateY(0deg) scale(1); }
+      40% { transform: rotateY(-14deg) translateX(-18px) scale(0.97); opacity: 0.72; }
+      100% { transform: rotateY(0deg) scale(1); opacity: 1; }
+    }
+
+    @keyframes pageFlipPrev {
+      0% { transform: rotateY(0deg) scale(1); }
+      40% { transform: rotateY(14deg) translateX(18px) scale(0.97); opacity: 0.72; }
+      100% { transform: rotateY(0deg) scale(1); opacity: 1; }
+    }
+
+    /* 4 фактуры бумаги, выбираемые ИИ по комментарию */
+    .scrapbook-spread.paper-cotton {
+      background: #f3ede2;
+      color: #1f1a17;
+      background-image: radial-gradient(rgba(31, 26, 23, 0.05) 1px, transparent 0);
+      background-size: 18px 18px;
+    }
+
+    .scrapbook-spread.paper-kraft {
+      background: #e7dcc8;
+      color: #231c15;
+      background-image: repeating-linear-gradient(0deg, rgba(35, 28, 21, 0.035) 0px, rgba(35, 28, 21, 0.035) 1px, transparent 1px, transparent 28px);
+    }
+
+    .scrapbook-spread.paper-sunset {
+      background: #f5e2d3;
+      color: #2b1814;
+      background-image: radial-gradient(circle at 80% 20%, rgba(232, 115, 60, 0.14), transparent 55%);
+    }
+
+    .scrapbook-spread.paper-midnight {
+      background: #1a1316;
+      color: #f6ede8;
+      background-image: radial-gradient(rgba(246, 237, 232, 0.05) 1px, transparent 0);
+      background-size: 20px 20px;
+    }
+
+    .spiral-spine {
+      position: absolute;
+      top: 18px;
+      bottom: 18px;
+      left: 440px;
+      width: 26px;
+      transform: translateX(-50%);
+      z-index: 25;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .spiral-ring {
+      width: 26px;
+      height: 10px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, #524a47 0%, #1c1716 60%, #786e6a 100%);
+      box-shadow: 0 3px 5px rgba(0, 0, 0, 0.55);
+    }
+
+    @media (max-width: 960px) {
+      .scrapbook-spread { grid-template-columns: 1fr; }
+      .spiral-spine { display: none; }
+    }
+
+    /* Плотная анимированная туча в правом верхнем углу (~10% экрана) */
+    .weather-corner-overlay {
+      position: absolute;
+      top: -28px;
+      right: -24px;
+      width: 250px;
+      height: 200px;
+      z-index: 35;
+      cursor: pointer;
+      filter: drop-shadow(0 18px 28px rgba(0, 0, 0, 0.55));
+      transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .weather-corner-overlay:hover { transform: scale(1.06) rotate(-2deg); }
+    #weatherCornerCanvas { width: 100%; height: 100%; display: block; }
+
+    .left-canvas-page {
+      padding: 24px 26px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      border-right: 1px solid rgba(0, 0, 0, 0.12);
+      position: relative;
+    }
+
+    .tape-strip {
+      position: absolute;
+      width: 84px;
+      height: 22px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+      z-index: 12;
+      pointer-events: none;
+    }
+
+    .tape-strip.top-left { top: 14px; left: 26px; transform: rotate(-14deg); }
+    .tape-strip.bottom-right { bottom: 44px; right: 26px; transform: rotate(-11deg); }
+
+    #proyavkaCanvas {
+      width: 100%;
+      max-width: 382px;
+      aspect-ratio: 4 / 5;
+      height: auto;
+      border-radius: 12px;
+      box-shadow: 0 18px 42px rgba(0, 0, 0, 0.42);
+      background: #140c0e;
+    }
+
+    .right-scrapbook-page {
+      padding: 26px 32px 24px 36px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 14px;
+      position: relative;
+    }
+
+    #doodleCanvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 28;
+      pointer-events: none;
+      border-radius: 26px;
+    }
+
+    #doodleCanvas.drawing-active { pointer-events: auto; cursor: crosshair; }
+
+    .scrap-header { padding-right: 180px; }
+
+    .scrap-date-stamp {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 9px;
+      border-radius: 6px;
+      background: rgba(232, 155, 60, 0.24);
+      letter-spacing: 0.06em;
+    }
+
+    .scrap-title {
+      font-family: var(--font-serif);
+      font-size: 33px;
+      font-weight: 600;
+      line-height: 1.08;
+      margin-top: 6px;
+    }
+
+    .scrap-narrative {
+      font-family: var(--font-hand);
+      font-size: 25px;
+      line-height: 1.26;
+      margin-top: 8px;
+      opacity: 0.95;
+    }
+
+    .scrap-stickers-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .cutout-tag {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 4px;
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.18);
+      transform: rotate(-1.5deg);
+    }
+
+    .cutout-tag:nth-child(even) { transform: rotate(1.8deg); }
+
+    /* =====================================================================
+       3-СЛОЙНЫЕ IPHONE DEPTH ПОЛАРОИДЫ (ФОН -> ТИПОГРАФИКА -> ПЕРЕДНИЙ ПЛАН)
+       ===================================================================== */
+    .popout-photos-stage {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 18px;
+      perspective: 1100px;
+      padding: 6px 4px 10px;
+      z-index: 15;
+    }
+
+    .popout-polaroid {
+      position: relative;
+      aspect-ratio: 4 / 5;
+      background: #ffffff;
+      padding: 8px 8px 24px 8px;
+      border-radius: 6px;
+      transform-style: preserve-3d;
+      transition: transform 0.38s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.38s ease;
+      cursor: pointer;
+      box-shadow: 0 16px 32px rgba(0, 0, 0, 0.36), 0 3px 8px rgba(0, 0, 0, 0.18);
+    }
+
+    .popout-polaroid:nth-child(1) { transform: rotateY(8deg) rotateZ(-3deg) translateZ(16px); }
+    .popout-polaroid:nth-child(2) { transform: rotateY(-7deg) rotateZ(2.5deg) translateZ(26px); }
+    .popout-polaroid:nth-child(3) { transform: rotateY(5deg) rotateZ(-2deg) translateZ(20px); }
+
+    .popout-polaroid:hover,
+    .popout-polaroid.beat-pop {
+      transform: perspective(900px) rotateX(6deg) rotateY(-4deg) translateY(-16px) translateZ(74px) scale(1.1);
+      box-shadow: 0 34px 62px rgba(0, 0, 0, 0.65), 0 0 26px rgba(232, 155, 60, 0.45);
+      z-index: 22;
+    }
+
+    .popout-polaroid.spin-flip { animation: polaroidSpin 0.8s cubic-bezier(0.22, 1, 0.36, 1); }
+
+    @keyframes polaroidSpin {
+      0% { transform: perspective(900px) rotateY(0deg) translateZ(60px) scale(1.08); }
+      100% { transform: perspective(900px) rotateY(360deg) translateZ(60px) scale(1.08); }
+    }
+
+    /* Внутренний 3-слойный контейнер глубины iPhone */
+    .depth-viewport {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      border-radius: 3px;
+      background: #141010;
+    }
+
+    .depth-layer-bg,
+    .depth-layer-fg {
+      position: absolute;
+      inset: -6%;
+      width: 112%;
+      height: 112%;
+      object-fit: cover;
+      transition: transform 0.14s ease-out;
+      pointer-events: none;
+    }
+
+    /* Текст между дальним фоном и передним планом, как на обоях iOS */
+    .depth-mid-stamp {
+      position: absolute;
+      top: 10%;
+      left: 0;
+      right: 0;
+      text-align: center;
+      font-family: var(--font-serif);
+      font-size: 26px;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.88);
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.55);
+      letter-spacing: 0.04em;
+      pointer-events: none;
+      transition: transform 0.14s ease-out;
+    }
+
+    .polaroid-tape {
+      position: absolute;
+      top: -9px;
+      left: 50%;
+      width: 54px;
+      height: 16px;
+      transform: translateX(-50%) rotate(-3deg);
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+      z-index: 5;
+    }
+
+    .polaroid-caption {
+      position: absolute;
+      bottom: 4px;
+      left: 10px;
+      right: 10px;
+      font-family: var(--font-hand);
+      font-size: 14px;
+      color: #2b2420;
+      text-align: center;
+    }
+
+    .scrap-bottom-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding-top: 10px;
+      border-top: 1px dashed rgba(128, 110, 100, 0.35);
+      z-index: 15;
+    }
+
+    .cassette-widget {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #231b18;
+      color: #f6ede8;
+      padding: 8px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
+      transform: rotate(-1deg);
+    }
+
+    .cassette-reel {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 3px dashed var(--amber);
+      flex-shrink: 0;
+    }
+
+    .cassette-reel.spinning { animation: spinReel 2.2s linear infinite; }
+
+    @keyframes spinReel {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    .paper-palette-hand { display: flex; align-items: center; gap: 7px; }
+
+    .palette-bead {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 2px solid rgba(255, 255, 255, 0.65);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+    }
+
+    .ai-director-note {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      opacity: 0.78;
+      line-height: 1.45;
+    }
+
+    /* Нижний плавающий док Paper */
+    .paper-dock {
+      position: fixed;
+      bottom: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(24, 13, 16, 0.92);
+      backdrop-filter: blur(18px);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 18px 45px rgba(0, 0, 0, 0.78);
+      z-index: 60;
+      max-width: 96vw;
+      overflow-x: auto;
+    }
+
+    .doodle-toolbar {
+      display: none;
+      align-items: center;
+      gap: 6px;
+      padding-left: 8px;
+      border-left: 1px solid var(--line);
+    }
+
+    .doodle-toolbar.open { display: flex; }
+
+    .ink-swatch {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+    }
+
+    .ink-swatch.active { border-color: #fff; transform: scale(1.15); }
+
+    /* =====================================================================
+       ВКЛАДКА 2: ПОЛКА КАССЕТ + КАЛЕНДАРЬ
+       ===================================================================== */
+    .shelf-view { display: none; }
+    .shelf-view.active { display: block; }
+
+    .shelf-stage {
+      background: #0d0708;
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 28px 24px 34px;
+      margin-bottom: 24px;
+      overflow-x: auto;
+    }
+
+    .vhs-rack {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      min-height: 320px;
+      padding: 20px 10px;
+      perspective: 1200px;
+    }
+
+    .vhs-spine {
+      width: 54px;
+      height: 280px;
+      border-radius: 8px;
+      position: relative;
+      cursor: pointer;
+      transition: all 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+      box-shadow: -6px 14px 28px rgba(0, 0, 0, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      overflow: hidden;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .vhs-spine-label {
+      writing-mode: vertical-rl;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      color: #fff;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
+      z-index: 2;
+      max-height: 240px;
+      overflow: hidden;
+    }
+
+    .vhs-spine img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      opacity: 0.35;
+      transition: opacity 0.35s ease;
+    }
+
+    .vhs-spine:hover {
+      width: 215px;
+      height: 295px;
+      transform: translateY(-14px) translateZ(45px) rotateY(-4deg);
+      border-color: var(--amber);
+      box-shadow: 0 28px 55px rgba(0, 0, 0, 0.92), 0 0 26px rgba(232, 155, 60, 0.35);
+    }
+
+    .vhs-spine:hover img { opacity: 0.95; }
+    .vhs-spine:hover .vhs-spine-label { opacity: 0; }
+
+    .archive-grid-two {
+      display: grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 960px) { .archive-grid-two { grid-template-columns: 1fr; } }
+
+    .panel-card {
+      background: var(--bg-panel);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      padding: 20px;
+    }
+
+    .weekdays {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      text-align: center;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--ink-muted);
+      margin: 12px 0 8px;
+    }
+
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 7px;
+    }
+
+    .cal-cell {
+      aspect-ratio: 1 / 1;
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--ink-muted);
+    }
+
+    .cal-cell.has-entry { cursor: pointer; border-color: var(--amber); color: #fff; font-weight: 700; }
+    .cal-cell.has-entry img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.72; }
+    .cal-cell.has-entry span { z-index: 2; text-shadow: 0 1px 4px #000; }
+
+    /* =====================================================================
+       МОДАЛКИ (СОЗДАНИЕ СТРАНИЦЫ + НАСТРОЙКА GEMINI API КЛЮЧА)
+       ===================================================================== */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(9, 4, 5, 0.88);
+      backdrop-filter: blur(12px);
+      display: none;
+      justify-content: center;
+      align-items: flex-start;
+      overflow-y: auto;
+      padding: 18px;
+      z-index: 120;
+    }
+
+    .modal-backdrop.open { display: flex; }
+
+    .composer-card {
+      width: 100%;
+      max-width: 540px;
+      background: var(--bg-panel);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 22px;
+      margin: auto 0;
+    }
+
+    .field { margin-bottom: 14px; }
+    .field label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+
+    textarea, input[type="text"], input[type="password"], input[type="date"] {
+      width: 100%;
+      background: var(--bg-room);
+      border: 1px solid var(--line);
+      color: var(--ink-light);
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-family: var(--font-sans);
+      font-size: 13.5px;
+    }
+
+    textarea { min-height: 92px; resize: vertical; }
+
+    .multi-photo-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .photo-slot {
+      aspect-ratio: 1 / 1;
+      border-radius: 12px;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--line);
+    }
+
+    .photo-slot img { width: 100%; height: 100%; object-fit: cover; }
+
+    .remove-photo-btn {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      cursor: pointer;
+    }
+
+    .add-more-slot {
+      aspect-ratio: 1 / 1;
+      border-radius: 12px;
+      border: 1.5px dashed rgba(232, 155, 60, 0.55);
+      background: rgba(232, 155, 60, 0.06);
+      color: var(--amber);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .song-results {
+      margin-top: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 155px;
+      overflow-y: auto;
+    }
+
+    .song-option {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 10px;
+      border-radius: 10px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--line);
+      cursor: pointer;
+      color: var(--ink-light);
+      text-align: left;
+    }
+
+    .song-option.selected { border-color: var(--amber); background: var(--amber-soft); }
+    .song-option img { width: 36px; height: 36px; border-radius: 6px; }
+
+    .error-banner {
+      background: rgba(239, 68, 68, 0.14);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #fca5a5;
+      padding: 9px 12px;
+      border-radius: 10px;
+      font-size: 12px;
+      margin-bottom: 12px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand-block">
+        <button class="circle-icon-btn active" id="modeBookBtn" type="button" title="Раскрытый скрапбук-веер">📖</button>
+        <button class="circle-icon-btn" id="modeShelfBtn" type="button" title="Книжная полка и Календарь">☷</button>
+        <button class="pill-btn" id="openApiKeyBtn" type="button" title="Подключить Gemini API ключ для ИИ-режиссуры">
+          <span class="ai-badge-dot" id="aiBadgeDot"></span>
+          <span id="aiBadgeLabel">AI Ключ</span>
+        </button>
+      </div>
+
+      <div class="journal-header-center">
+        <h1 class="journal-title">Проявка // Daily Scrapbook</h1>
+        <div class="journal-counter" id="journalCounterLabel">✓ 3 страницы в альбоме</div>
+      </div>
+
+      <div style="display:flex; gap:8px;">
+        <button class="pill-btn" id="resetSeedBtn" type="button">↻ Примеры</button>
+        <button class="pill-btn amber" id="openComposerBtn" type="button">+ Страница</button>
+      </div>
+    </header>
+
+    <!-- =====================================================================
+         ВКЛАДКА 1: ВЕЕР СКРАПБУК-СТРАНИЦ В СТИЛЕ PAPER
+         ===================================================================== -->
+    <main class="paper-stage-view" id="paperStageView">
+      <div class="fan-deck-wrapper">
+        <div class="fan-wing left" id="fanWingLeft"></div>
+
+        <div class="scrapbook-spread paper-cotton" id="scrapbookSpread">
+          <div class="spiral-spine" id="spiralSpine"></div>
+
+          <!-- Плотная анимированная туча (~10% угла экрана) в правом верхнем углу -->
+          <div class="weather-corner-overlay" id="weatherCornerBox" title="Кликните на тучу, чтобы вызвать всплеск погоды">
+            <canvas id="weatherCornerCanvas" width="500" height="400"></canvas>
+          </div>
+
+          <!-- Левый лист: Генеративная проявка 4:5 со скотчем -->
+          <div class="left-canvas-page">
+            <div class="tape-strip top-left" id="tapeTopLeft"></div>
+            <div class="tape-strip bottom-right" id="tapeBottomRight"></div>
+            <canvas id="proyavkaCanvas" width="800" height="1000"></canvas>
+            <div style="font-family:var(--font-mono); font-size:10.5px; opacity:0.75;" id="canvasLiveHint">
+              Лист 4:5 проявлен · включите песню для реакции на бит
+            </div>
+          </div>
+
+          <!-- Правый лист: Повествование + AI-вырезки + 3-слойные iPhone Depth полароиды + Кассета -->
+          <div class="right-scrapbook-page" id="rightScrapbookPage">
+            <canvas id="doodleCanvas"></canvas>
+
+            <div>
+              <div class="scrap-header">
+                <span class="scrap-date-stamp" id="scrapDateStamp">2026-07-18</span>
+                <h2 class="scrap-title" id="scrapTitle">Летний подъём на пик Фурманова</h2>
+                <p class="scrap-narrative" id="scrapNarrative"></p>
+              </div>
+
+              <div class="scrap-stickers-row" id="scrapStickersRow"></div>
+            </div>
+
+            <!-- 3D-полароиды с 3 слоями глубины (как на обоях iPhone) -->
+            <div class="popout-photos-stage" id="popoutPhotosStage"></div>
+
+            <!-- Нижняя строка: Кассета + Палитра + Объяснение ИИ -->
+            <div style="z-index:15; display:flex; flex-direction:column; gap:8px;">
+              <div class="scrap-bottom-row">
+                <div class="cassette-widget">
+                  <div class="cassette-reel" id="cassetteReel"></div>
+                  <div style="min-width:0; max-width:210px;">
+                    <div style="font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" id="cassetteTitle">Friday</div>
+                    <div style="font-size:10.5px; color:#baa5a0;" id="cassetteArtist">Riton & Nightcrawlers · 2021</div>
+                  </div>
+                  <a id="cassetteAppleLink" href="https://music.apple.com" target="_blank" rel="noopener" style="font-family:var(--font-mono); font-size:10px; color:var(--amber); text-decoration:none;">Apple ↗</a>
+                </div>
+
+                <div class="paper-palette-hand">
+                  <div id="paperPaletteBeads" style="display:flex; gap:5px;"></div>
+                  <span style="font-family:var(--font-hand); font-size:18px; opacity:0.85;">← палитра дня</span>
+                </div>
+              </div>
+              <div class="ai-director-note" id="aiDirectorNote"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="fan-wing right" id="fanWingRight"></div>
+      </div>
+    </main>
+
+    <!-- =====================================================================
+         ВКЛАДКА 2: ПОЛКА КАССЕТ / КОРЕШКОВ + КАЛЕНДАРЬ
+         ===================================================================== -->
+    <section class="shelf-view" id="shelfView">
+      <div class="shelf-stage">
+        <div style="text-align:center; margin-bottom:10px;">
+          <div style="font-family:var(--font-serif); font-size:26px; font-style:italic;">Полка воспоминаний (наведите на корешок)</div>
+          <div style="font-size:12px; color:var(--ink-muted);">Клик по корешку открывает разворот в веере Paper</div>
+        </div>
+        <div class="vhs-rack" id="vhsRack"></div>
+      </div>
+
+      <div class="archive-grid-two">
+        <div class="panel-card">
+          <div style="font-family:var(--font-serif); font-size:23px; font-style:italic; margin-bottom:10px;">Лента проявленных листов 4:5</div>
+          <div id="seriesGrid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:12px;"></div>
+        </div>
+
+        <div class="panel-card">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <button class="pill-btn" id="prevMonthBtn" type="button" style="padding:5px 10px;">←</button>
+            <div style="font-family:var(--font-serif); font-size:22px; font-style:italic;" id="monthTitleLabel">Июль 2026</div>
+            <button class="pill-btn" id="nextMonthBtn" type="button" style="padding:5px 10px;">→</button>
+          </div>
+          <div class="weekdays">
+            <div>ПН</div><div>ВТ</div><div>СР</div><div>ЧТ</div><div>ПТ</div><div>СБ</div><div>ВС</div>
+          </div>
+          <div class="calendar-grid" id="calendarGrid"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Нижний плавающий док Paper -->
+  <div class="paper-dock" id="paperDock">
+    <button class="pill-btn" id="prevPageBtn" type="button">←</button>
+    <button class="pill-btn amber" id="playTrackBtn" type="button">▶ Песня (30с)</button>
+    <button class="pill-btn" id="voiceoverBtn" type="button">🗣 Озвучить</button>
+    <button class="pill-btn" id="toggleDoodleBtn" type="button">✎ Дудлить</button>
+    <button class="pill-btn" id="exportZipBtn" type="button">↓ ZIP</button>
+    <button class="pill-btn" id="nextPageBtn" type="button">→</button>
+
+    <div class="doodle-toolbar" id="doodleToolbar">
+      <button class="ink-swatch active" data-color="#e89b3c" style="background:#e89b3c;" type="button"></button>
+      <button class="ink-swatch" data-color="#e11d48" style="background:#e11d48;" type="button"></button>
+      <button class="ink-swatch" data-color="#0284c7" style="background:#0284c7;" type="button"></button>
+      <button class="ink-swatch" data-color="#1f1a17" style="background:#1f1a17;" type="button"></button>
+      <button class="pill-btn" id="clearDoodleBtn" type="button" style="padding:5px 10px; font-size:11px;">Стереть</button>
+    </div>
+  </div>
+
+  <!-- Модалка настройки Gemini API ключа (сохраняется только в браузере пользователя) -->
+  <div class="modal-backdrop" id="apiKeyModal">
+    <div class="composer-card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <h2 style="font-family:var(--font-serif); font-size:25px;">Подключение ИИ-режиссёра (Gemini)</h2>
+        <button class="pill-btn" id="closeApiKeyBtn" type="button">✕</button>
+      </div>
+      <p style="font-size:12.5px; color:var(--ink-muted); line-height:1.5; margin-bottom:14px;">
+        Для работы через GitHub Pages без сервера вставьте ключ <strong>Google AI Studio (Gemini API)</strong>. Он сохранится только в <code>localStorage</code> вашего браузера и позволит ИИ самому подбирать бумагу, погоду, вырезки и композицию под любой ваш текст.
+      </p>
+      <div class="field">
+        <label for="geminiKeyInput">Gemini API Key (начинается с AIza...)</label>
+        <input id="geminiKeyInput" type="password" placeholder="AIzaSy..." />
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button class="pill-btn amber" id="saveApiKeyBtn" type="button" style="flex:1; justify-content:center;">Сохранить ключ</button>
+        <button class="pill-btn" id="clearApiKeyBtn" type="button">Очистить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Модалка добавления новой страницы (без ручного выбора настроения/бумаги) -->
+  <div class="modal-backdrop" id="composerModal">
+    <div class="composer-card">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+        <h2 style="font-family:var(--font-serif); font-size:26px;">Новая страница в скрапбуке</h2>
+        <button class="pill-btn" id="closeComposerBtn" type="button">✕</button>
+      </div>
+
+      <div class="error-banner" id="formErrorBanner"></div>
+
+      <form id="newDayForm" novalidate>
+        <div class="field">
+          <label for="dateInput">Дата</label>
+          <input id="dateInput" type="date" value="2026-07-19" required />
+        </div>
+
+        <div class="field">
+          <label for="storyInput">Запись дня (ИИ сам выберет бумагу, цвета скотча, погоду и скрапбук-вырезки по вашему тексту)</label>
+          <textarea id="storyInput" placeholder="Напишите свободно, как прошёл день: погода, свет, люди, город, дорога или случайная деталь..." required></textarea>
+        </div>
+
+        <div class="field">
+          <label>Фотографии на разворот (выберите несколько или добавляйте по одной, до 6 кадров)</label>
+          <input id="photosInput" type="file" accept="image/*" multiple style="display:none;" />
+          <div class="multi-photo-grid" id="multiPhotoGrid"></div>
+        </div>
+
+        <div class="field">
+          <label>Песня дня (обязательно — вращает кассету, качает штрихи и 3D-снимки)</label>
+          <div style="display:flex; gap:8px;">
+            <input id="songQueryInput" type="text" placeholder="Например: Riton Nightcrawlers Friday" />
+            <button class="pill-btn" id="searchSongBtn" type="button">Найти</button>
+          </div>
+          <div class="song-results" id="songResults"></div>
+          <div style="margin-top:8px;">
+            <input id="localAudioInput" type="file" accept="audio/*" />
+          </div>
+        </div>
+
+        <button class="pill-btn amber" id="submitDayBtn" type="submit" style="width:100%; justify-content:center; padding:11px;">
+          Проявить страницу с помощью ИИ
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================================
+    // 1. INDEXEDDB + GEMINI API КЛЮЧ В LOCALSTORAGE (ДЛЯ GITHUB PAGES)
+    // =========================================================================
+    const DB_NAME = 'PaperScrapbookGitHubDB_V5';
+    const STORE = 'pages';
+    const KEY_STORAGE = 'proyavka_gemini_api_key';
+
+    function getStoredGeminiKey() {
+      return (localStorage.getItem(KEY_STORAGE) || '').trim();
+    }
+
+    function updateAiKeyBadge() {
+      const hasKey = Boolean(getStoredGeminiKey());
+      document.getElementById('aiBadgeDot').classList.toggle('connected', hasKey);
+      document.getElementById('aiBadgeLabel').textContent = hasKey ? 'Gemini AI ✓' : 'AI Ключ';
+    }
+
+    const apiKeyModal = document.getElementById('apiKeyModal');
+    document.getElementById('openApiKeyBtn').addEventListener('click', () => {
+      document.getElementById('geminiKeyInput').value = getStoredGeminiKey();
+      apiKeyModal.classList.add('open');
+    });
+    document.getElementById('closeApiKeyBtn').addEventListener('click', () => apiKeyModal.classList.remove('open'));
+    document.getElementById('saveApiKeyBtn').addEventListener('click', () => {
+      const val = document.getElementById('geminiKeyInput').value.trim();
+      if (val) localStorage.setItem(KEY_STORAGE, val);
+      updateAiKeyBadge();
+      apiKeyModal.classList.remove('open');
+    });
+    document.getElementById('clearApiKeyBtn').addEventListener('click', () => {
+      localStorage.removeItem(KEY_STORAGE);
+      document.getElementById('geminiKeyInput').value = '';
+      updateAiKeyBadge();
+    });
+
+    function openDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, 1);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains(STORE)) {
+            db.createObjectStore(STORE, { keyPath: 'date' });
+          }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function getAllEntries() {
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE, 'readonly');
+        const req = tx.objectStore(STORE).getAll();
+        req.onsuccess = () => resolve((req.result || []).sort((a, b) => a.date.localeCompare(b.date)));
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function putEntry(entry) {
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE, 'readwrite');
+        tx.objectStore(STORE).put(entry);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    async function replaceAllEntries(list) {
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE, 'readwrite');
+        const store = tx.objectStore(STORE);
+        store.clear();
+        list.forEach((item) => store.put(item));
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    const spiralSpine = document.getElementById('spiralSpine');
+    for (let i = 0; i < 18; i++) {
+      const ring = document.createElement('div');
+      ring.className = 'spiral-ring';
+      spiralSpine.appendChild(ring);
+    }
+
+    // =========================================================================
+    // 2. K-MEANS ПАЛИТРА + 3-СЛОЙНЫЙ IPHONE DEPTH ЭФФЕКТ ДЛЯ КАЖДОГО ФОТО
+    // =========================================================================
+    function loadImageElement(src) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = src;
+      });
+    }
+
+    // Создаёт вырезанный передний план (силуэт горы/объекта/контраста) для iPhone Depth Wallpaper эффекта
+    async function buildForegroundDepthCutout(src) {
+      try {
+        const img = await loadImageElement(src);
+        const w = 320;
+        const h = 400;
+        const c = document.createElement('canvas');
+        c.width = w;
+        c.height = h;
+        const ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+
+        const imgData = ctx.getImageData(0, 0, w, h);
+        const d = imgData.data;
+
+        // Оцениваем цвет неба/верхней кромки, чтобы отделить передний план от фона
+        let skyR = 0, skyG = 0, skyB = 0, skyCount = 0;
+        for (let y = 0; y < Math.floor(h * 0.22); y++) {
+          for (let x = 0; x < w; x += 4) {
+            const idx = (y * w + x) * 4;
+            skyR += d[idx];
+            skyG += d[idx + 1];
+            skyB += d[idx + 2];
+            skyCount++;
+          }
+        }
+        skyR /= Math.max(1, skyCount);
+        skyG /= Math.max(1, skyCount);
+        skyB /= Math.max(1, skyCount);
+
+        for (let y = 0; y < h; y++) {
+          const yNorm = y / h;
+          for (let x = 0; x < w; x++) {
+            const idx = (y * w + x) * 4;
+            const distFromSky = Math.hypot(d[idx] - skyR, d[idx + 1] - skyG, d[idx + 2] - skyB);
+            // Нижняя часть кадра и объекты, контрастные относительно неба, выходят на передний план
+            const isForeground = yNorm > 0.34 && (distFromSky > 58 || yNorm > 0.62);
+            if (!isForeground) {
+              d[idx + 3] = 0;
+            }
+          }
+        }
+        ctx.putImageData(imgData, 0, 0);
+        return c.toDataURL('image/png');
+      } catch {
+        return src;
+      }
+    }
+
+    async function analyzePhotosKMeans(photoDataUrls, k = 5) {
+      const samples = [];
+      for (const url of photoDataUrls.slice(0, 6)) {
+        try {
+          const img = await loadImageElement(url);
+          const c = document.createElement('canvas');
+          const ctx = c.getContext('2d');
+          c.width = 48;
+          c.height = 48;
+          ctx.drawImage(img, 0, 0, 48, 48);
+          const data = ctx.getImageData(0, 0, 48, 48).data;
+          for (let i = 0; i < data.length; i += 16) {
+            samples.push([data[i], data[i + 1], data[i + 2]]);
+          }
+        } catch {}
+      }
+
+      if (!samples.length) {
+        return { palette: ['#e89b3c', '#38bdf8', '#10b981', '#fef3c7', '#1e1b18'], avgWarmth: 0.6, avgLuminance: 0.55 };
+      }
+
+      let centroids = Array.from({ length: k }, (_, idx) => [...samples[Math.floor((idx / k) * samples.length)]]);
+      for (let iter = 0; iter < 6; iter++) {
+        const sums = Array.from({ length: k }, () => [0, 0, 0, 0]);
+        for (const px of samples) {
+          let bestIdx = 0;
+          let bestDist = Infinity;
+          for (let c = 0; c < k; c++) {
+            const dr = px[0] - centroids[c][0];
+            const dg = px[1] - centroids[c][1];
+            const db = px[2] - centroids[c][2];
+            const d = dr * dr + dg * dg + db * db;
+            if (d < bestDist) { bestDist = d; bestIdx = c; }
+          }
+          sums[bestIdx][0] += px[0];
+          sums[bestIdx][1] += px[1];
+          sums[bestIdx][2] += px[2];
+          sums[bestIdx][3] += 1;
+        }
+        centroids = centroids.map((old, c) =>
+          sums[c][3] > 0
+            ? [Math.round(sums[c][0] / sums[c][3]), Math.round(sums[c][1] / sums[c][3]), Math.round(sums[c][2] / sums[c][3])]
+            : old
+        );
+      }
+
+      centroids.sort((a, b) => (b[0] + b[1] + b[2]) - (a[0] + a[1] + a[2]));
+      const palette = centroids.map(([r, g, b]) => '#' + [r, g, b].map((v) => v.toString(16).padStart(2, '0')).join(''));
+
+      let warmthSum = 0;
+      let lumSum = 0;
+      for (const [r, g, b] of samples) {
+        warmthSum += Math.max(0, Math.min(1, (r - b + 255) / 510));
+        lumSum += (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+      }
+
+      return {
+        palette,
+        avgWarmth: Number((warmthSum / samples.length).toFixed(2)),
+        avgLuminance: Number((lumSum / samples.length).toFixed(2))
+      };
+    }
+
+    // =========================================================================
+    // 3. ПРЯМОЙ ВЫЗОВ GEMINI API ИЗ БРАУЗЕРА (ИИ ОЦЕНИВАЕТ СТИЛЬ СТРАНИЦЫ)
+    // =========================================================================
+    async function analyzeDayWithGeminiOrFallback(text, track, photoStats) {
+      const apiKey = getStoredGeminiKey();
+
+      if (apiKey) {
+        const prompt = `Ты — арт-директор личного скрапбук-дневника «Проявка».
+Проанализируй запись дня, трек и палитру фото, и выбери визуальный стиль разворота.
+Не оценивай психику или балл дня — описывай только физическую атмосферу, свет, погоду, фактуру бумаги и ритм.
+
+Запись дня: "${text}"
+Песня: "${track.title}" — ${track.artist} (жанр: ${track.genre \vert{}\vert{} 'неизвестен'}, год: ${track.releaseYear || 2021})
+Палитра фото (HEX): ${photoStats.palette.join(', ')} (теплота: ${photoStats.avgWarmth}, яркость: ${photoStats.avgLuminance})
+
+Верни СТРОГО валидный JSON без markdown:
+{
+  "folder_name": "поэтичное название страницы из 3-5 слов на русском",
+  "paper_theme": "одно из: paper-cotton | paper-kraft | paper-sunset | paper-midnight",
+  "weather": "одно из: rain | snow | sun | night",
+  "stickers": ["3 короткие уникальные скрапбук-вырезки капсом по мотивам текста, например: ⛰ ВЫСОТА 3053М"],
+  "energy": число от 0.1 до 1.0,
+  "warmth": число от 0.1 до 1.0,
+  "crowd_density": число от 0.1 до 1.0,
+  "era_grain": число от 0.02 до 0.65,
+  "light_angle": "high_noon | dusk | night_lamp",
+  "estimated_bpm": целое число от 60 до 165,
+  "explanation": "1-2 предложения по-русски, почему ИИ выбрал именно эту бумагу, погоду и свет"
+}`;
+
+        try {
+          const res = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { responseMimeType: 'application/json', temperature: 0.65 }
+              })
+            }
+          );
+
+          if (res.ok) {
+            const data = await res.json();
+            const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+            const parsed = JSON.parse(raw);
+            return {
+              folder_name: parsed.folder_name || 'Страница прожитого дня',
+              paper_theme: ['paper-cotton', 'paper-kraft', 'paper-sunset', 'paper-midnight'].includes(parsed.paper_theme)
+                ? parsed.paper_theme
+                : 'paper-cotton',
+              weather: ['rain', 'snow', 'sun', 'night'].includes(parsed.weather) ? parsed.weather : 'sun',
+              stickers: Array.isArray(parsed.stickers) && parsed.stickers.length ? parsed.stickers.slice(0, 3) : ['✦ ЗАМЕТКА ДНЯ'],
+              energy: Math.max(0.1, Math.min(1, Number(parsed.energy) || 0.5)),
+              warmth: Math.max(0.1, Math.min(1, Number(parsed.warmth) || photoStats.avgWarmth)),
+              crowd_density: Math.max(0.1, Math.min(1, Number(parsed.crowd_density) || 0.5)),
+              era_grain: Math.max(0.02, Math.min(0.65, Number(parsed.era_grain) || 0.15)),
+              light_angle: ['high_noon', 'dusk', 'night_lamp'].includes(parsed.light_angle) ? parsed.light_angle : 'dusk',
+              estimated_bpm: Math.max(60, Math.min(165, Number(parsed.estimated_bpm) || 105)),
+              voice_rate: Number((0.88 + (Number(parsed.energy) || 0.5) * 0.28).toFixed(2)),
+              voice_pitch: Number((0.94 + (Number(parsed.warmth) || 0.5) * 0.12).toFixed(2)),
+              explanation: parsed.explanation || 'Стиль разворота подобран Gemini AI по атмосфере записи и палитре снимков.'
+            };
+          }
+        } catch {}
+      }
+
+      // Автономный резерв, если ключ Gemini ещё не введён
+      return autonomousLocalStyleDirector(text, track, photoStats);
+    }
+
+    function autonomousLocalStyleDirector(text, track, photoStats) {
+      const lower = text.toLowerCase();
+      const year = Number(track.releaseYear) || 2021;
+      const genre = String(track.genre || '').toLowerCase();
+
+      let weather = 'sun';
+      if (/снег|снеж|метел|мороз|каток|лед|лёд|зим/.test(lower)) weather = 'snow';
+      else if (/дожд|ливн|ливень|мокр|луж|гроз|капл|пасмур/.test(lower)) weather = 'rain';
+      else if (/ноч|лун|сумерк|вечер|звезд|звёзд|трамва|ламп/.test(lower) && !/солнц|полдень/.test(lower)) weather = 'night';
+
+      let paperTheme = 'paper-cotton';
+      if (weather === 'night' || weather === 'rain') paperTheme = 'paper-midnight';
+      else if (/гор|пик|лес|троп|поход|кост|природ/.test(lower)) paperTheme = 'paper-kraft';
+      else if (/закат|осен|оранж|вечер|тепл/.test(lower)) paperTheme = 'paper-sunset';
+
+      let estimatedBpm = 100;
+      if (/friday|riton|nightcrawlers/.test(`${track.title}${track.artist}`.toLowerCase())) estimatedBpm = 123;
+      else if (/dance|electronic|house|pop/.test(genre)) estimatedBpm = 120;
+      else if (/jazz|ambient|classical|piano/.test(genre)) estimatedBpm = 72;
+
+      const energy = weather === 'night' ? 0.32 : Math.min(0.95, Math.max(0.25, (estimatedBpm - 55) / 80));
+      const eraGrain = year >= 2019 ? 0.03 : (year >= 2005 ? 0.25 : 0.58);
+
+      const words = text.replace(/[^а-яёa-z0-9\s-]/gi, ' ').split(/\s+/).filter((w) => w.length > 3);
+      const folderName = /фурманов/i.test(lower)
+        ? 'Летний подъём на пик Фурманова'
+        : (words.length >= 2
+          ? (words.slice(0, 4).join(' ').charAt(0).toUpperCase() + words.slice(0, 4).join(' ').slice(1))
+          : 'Страница прожитого дня');
+
+      const stickers = [
+        weather === 'rain' ? '☂ ДОЖДЛИВЫЙ СЛЕД' : weather === 'snow' ? '❄ СНЕЖНЫЙ ЭФИР' : weather === 'night' ? '☾ НОЧНОЙ КАДР' : '☀ ДНЕВНОЙ СВЕТ',
+        `${estimatedBpm} BPM // ТРЕК`, words[0] ? `✦ ${words[0].toUpperCase()}` : '✎ ЛИСТ АЛЬБОМА'
+      ];
+
+      return {
+        folder_name: folderName,
+        paper_theme: paperTheme,
+        weather,
+        stickers,
+        energy: Number(energy.toFixed(2)),
+        warmth: photoStats.avgWarmth,
+        crowd_density: /друз|вместе|компани|пик|гор/.test(lower) ? 0.88 : 0.25,
+        era_grain: eraGrain,
+        light_angle: weather === 'sun' ? 'high_noon' : (weather === 'night' ? 'night_lamp' : 'dusk'),
+        estimated_bpm: estimatedBpm,
+        voice_rate: Number((0.88 + energy * 0.28).toFixed(2)),
+        voice_pitch: Number((0.94 + photoStats.avgWarmth * 0.12).toFixed(2)),
+        explanation: 'Авторежиссура без API-ключа (подключите Gemini API ключ вверху для глубокого ИИ-разбора текста).'
+      };
+    }
+
+    // =========================================================================
+    // 4. ПЛОТНАЯ АНИМИРОВАННАЯ ТУЧА В ПРАВОМ ВЕРХНЕМ УГЛУ (~10% ЭКРАНА)
+    // =========================================================================
+    const weatherCanvas = document.getElementById('weatherCornerCanvas');
+    const wCtx = weatherCanvas.getContext('2d');
+    let weatherAnimId = null;
+    let weatherParticles = [];
+    let currentWeatherMode = 'sun';
+    let currentWeatherAccent = '#e89b3c';
+
+    function spawnWeatherParticles(count, burst = false) {
+      for (let i = 0; i < count; i++) {
+        weatherParticles.push({
+          x: 110 + Math.random() * 290,
+          y: burst ? (145 + Math.random() * 45) : (150 + Math.random() * 210),
+          vx: (Math.random() - 0.5) * (burst ? 4.2 : 0.9),
+          vy: currentWeatherMode === 'rain' ? (5.2 + Math.random() * 4.5) : (1.4 + Math.random() * 1.8),
+          size: currentWeatherMode === 'rain' ? (12 + Math.random() * 10) : (3.5 + Math.random() * 4.5),
+          phase: Math.random() * Math.PI * 2
+        });
+      }
+    }
+
+    function startCornerWeatherAnimation(mode, accentHex) {
+      if (weatherAnimId) cancelAnimationFrame(weatherAnimId);
+      currentWeatherMode = mode;
+      currentWeatherAccent = accentHex || '#e89b3c';
+      weatherParticles = [];
+      spawnWeatherParticles(26, false);
+
+      let t = 0;
+
+      function drawSolidCloud(offsetY) {
+        wCtx.save();
+        wCtx.translate(0, offsetY);
+
+        const grad = wCtx.createLinearGradient(110, 40, 390, 190);
+        if (mode === 'rain') {
+          grad.addColorStop(0, '#475569');
+          grad.addColorStop(0.55, '#334155');
+          grad.addColorStop(1, '#1e293b');
+        } else if (mode === 'snow') {
+          grad.addColorStop(0, '#f8fafc');
+          grad.addColorStop(0.6, '#cbd5e1');
+          grad.addColorStop(1, '#94a3b8');
+        } else {
+          grad.addColorStop(0, '#312e81');
+          grad.addColorStop(1, '#1e1b4b');
+        }
+
+        wCtx.fillStyle = grad;
+        wCtx.beginPath();
+        wCtx.arc(165, 130, 52, Math.PI * 0.5, Math.PI * 1.55);
+        wCtx.arc(225, 92, 64, Math.PI * 1.02, Math.PI * 1.96);
+        wCtx.arc(305, 102, 58, Math.PI * 1.15, Math.PI * 1.98);
+        wCtx.arc(365, 134, 46, Math.PI * 1.4, Math.PI * 0.5);
+        wCtx.closePath();
+        wCtx.fill();
+
+        wCtx.lineWidth = 3;
+        wCtx.strokeStyle = 'rgba(255, 255, 255, 0.34)';
+        wCtx.stroke();
+        wCtx.restore();
+      }
+
+      function frame() {
+        t += 0.045;
+        wCtx.clearRect(0, 0, weatherCanvas.width, weatherCanvas.height);
+
+        const floatY = Math.sin(t) * 5;
+
+        if (mode === 'sun') {
+          wCtx.save();
+          wCtx.translate(310, 120 + floatY);
+          wCtx.rotate(t * 0.35);
+          wCtx.fillStyle = currentWeatherAccent;
+          for (let i = 0; i < 12; i++) {
+            wCtx.rotate(Math.PI / 6);
+            wCtx.beginPath();
+            wCtx.moveTo(64, -7);
+            wCtx.lineTo(96, 0);
+            wCtx.lineTo(64, 7);
+            wCtx.closePath();
+            wCtx.fill();
+          }
+          wCtx.beginPath();
+          wCtx.arc(0, 0, 56, 0, Math.PI * 2);
+          wCtx.fillStyle = '#fbbf24';
+          wCtx.fill();
+          wCtx.restore();
+        }
+
+        for (let i = weatherParticles.length - 1; i >= 0; i--) {
+          const p = weatherParticles[i];
+          p.y += p.vy;
+          p.x += mode === 'snow' ? Math.sin(t + p.phase) * 1.3 + p.vx * 0.3 : p.vx - 0.6;
+
+          if (p.y > 390) {
+            if (weatherParticles.length > 26) {
+              weatherParticles.splice(i, 1);
+              continue;
+            }
+            p.y = 155;
+            p.x = 120 + Math.random() * 270;
+          }
+
+          if (mode === 'rain') {
+            wCtx.strokeStyle = '#38bdf8';
+            wCtx.lineWidth = 3.5;
+            wCtx.lineCap = 'round';
+            wCtx.beginPath();
+            wCtx.moveTo(p.x, p.y);
+            wCtx.lineTo(p.x - 3, p.y + p.size);
+            wCtx.stroke();
+          } else if (mode === 'snow') {
+            wCtx.fillStyle = '#ffffff';
+            wCtx.beginPath();
+            wCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            wCtx.fill();
+          } else {
+            wCtx.fillStyle = '#fde047';
+            wCtx.beginPath();
+            wCtx.arc(p.x, p.y, p.size * 0.7, 0, Math.PI * 2);
+            wCtx.fill();
+          }
+        }
+
+        if (mode !== 'sun') drawSolidCloud(floatY);
+        weatherAnimId = requestAnimationFrame(frame);
+      }
+
+      frame();
+    }
+
+    document.getElementById('weatherCornerBox').addEventListener('click', () => spawnWeatherParticles(22, true));
+
+    // =========================================================================
+    // 5. ГЕНЕРАТИВНЫЙ 4:5 ХОЛСТ + WEB AUDIO БИТ
+    // =========================================================================
+    const canvas = document.getElementById('proyavkaCanvas');
+    const ctx = canvas.getContext('2d');
+
+    let audioEl = new Audio();
+    audioEl.crossOrigin = 'anonymous';
+    let audioCtx = null;
+    let analyser = null;
+    let freqData = null;
+    let animFrameId = null;
+
+    let currentRenderState = {
+      entry: null,
+      loadedImages: [],
+      beatPhase: 0,
+      photoIndex: 0,
+      lastBeatTime: 0,
+      strokes: []
+    };
+
+    function seedDeterministicStrokes(entry) {
+      const axes = entry.axes;
+      const count = Math.round(28 + axes.energy * 95);
+      const strokes = [];
+      let seed = entry.date.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+      const rand = () => {
+        seed = (seed * 9301 + 49297) % 233280;
+        return seed / 233280;
+      };
+
+      for (let i = 0; i < count; i++) {
+        strokes.push({
+          nx: rand(),
+          ny: rand(),
+          baseLen: 14 + (1 - axes.energy) * 34 + rand() * 18,
+          thickness: 2.5 + axes.energy * 4.5,
+          angle: axes.energy > 0.65 ? (-0.45 + rand() * 0.9) : (rand() * 0.25 - 0.12),
+          colorIdx: Math.floor(rand() * entry.palette.length),
+          phaseOffset: rand() * Math.PI * 2
+        });
+      }
+      return strokes;
+    }
+
+    function drawGrainOverlay(width, height, intensity) {
+      if (intensity <= 0.05) return;
+      const step = 4;
+      ctx.save();
+      for (let y = 0; y < height; y += step) {
+        for (let x = 0; x < width; x += step) {
+          const v = (Math.sin(x * 12.9898 + y * 78.233) * 43758.5453) % 1;
+          if (Math.abs(v) < intensity * 0.35) {
+            ctx.fillStyle = v > 0 ? `rgba(255,255,255,${intensity * 0.09})` : `rgba(0,0,0,${intensity * 0.14})`;
+            ctx.fillRect(x, y, step, step);
+          }
+        }
+      }
+      ctx.restore();
+    }
+
+    function renderProyavkaFrame(bassEnergy = 0.28, highEnergy = 0.22) {
+      const entry = currentRenderState.entry;
+      if (!entry) return;
+
+      const W = canvas.width;
+      const H = canvas.height;
+      const axes = entry.axes;
+      const pal = entry.palette;
+
+      ctx.clearRect(0, 0, W, H);
+
+      const bgGrad = ctx.createLinearGradient(0, 0, W, H);
+      bgGrad.addColorStop(0, pal[pal.length - 1] || '#170d0f');
+      bgGrad.addColorStop(0.55, pal[1] || '#2b191c');
+      bgGrad.addColorStop(1, pal[0] || '#e89b3c');
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, W, H);
+
+      ctx.save();
+      if (axes.light_angle === 'high_noon') {
+        const sunGrad = ctx.createRadialGradient(W * 0.5, -40, 20, W * 0.5, H * 0.35, W * 0.85);
+        sunGrad.addColorStop(0, `rgba(255, 250, 224, ${0.44 + bassEnergy * 0.18})`); sunGrad.addColorStop(1, 'rgba(255, 250, 224, 0)'); ctx.fillStyle = sunGrad; ctx.fillRect(0, 0, W, H); } else if (axes.light_angle === 'night_lamp') { const lampGrad = ctx.createRadialGradient(W * 0.72, H * 0.26, 10, W * 0.72, H * 0.26, W * 0.65); lampGrad.addColorStop(0, `rgba(232, 155, 60, ${0.34 + bassEnergy * 0.15})`);
+        lampGrad.addColorStop(1, 'rgba(12, 6, 8, 0.72)');
+        ctx.fillStyle = lampGrad;
+        ctx.fillRect(0, 0, W, H);
+      } else {
+        const duskGrad = ctx.createLinearGradient(0, 0, 0, H);
+        duskGrad.addColorStop(0, 'rgba(251, 113, 133, 0.22)');
+        duskGrad.addColorStop(1, 'rgba(12, 6, 8, 0.75)');
+        ctx.fillStyle = duskGrad;
+        ctx.fillRect(0, 0, W, H);
+      }
+      ctx.restore();
+
+      const imgs = currentRenderState.loadedImages;
+      if (imgs.length) {
+        if (axes.crowd_density >= 0.6 || imgs.length > 1) {
+          const layouts = [
+            { x: 64, y: 135, w: 430, h: 460, rot: -0.045, color: pal[0] },
+            { x: 315, y: 235, w: 420, h: 450, rot: 0.05, color: pal[2] || pal[1] },
+            { x: 130, y: 435, w: 470, h: 365, rot: -0.025, color: pal[1] }
+          ];
+          const countToDraw = Math.min(3, Math.max(imgs.length, axes.crowd_density >= 0.65 ? 3 : imgs.length));
+
+          for (let idx = 0; idx < countToDraw; idx++) {
+            const box = layouts[idx];
+            const img = imgs[(currentRenderState.photoIndex + idx) % imgs.length];
+            const pulse = idx === 0 ? (1 + bassEnergy * 0.055) : (1 + highEnergy * 0.03);
+
+            ctx.save();
+            ctx.translate(box.x + box.w / 2, box.y + box.h / 2);
+            ctx.rotate(box.rot + (idx % 2 === 0 ? 1 : -1) * bassEnergy * 0.025);
+            ctx.scale(pulse, pulse);
+
+            ctx.fillStyle = box.color;
+            ctx.beginPath();
+            ctx.moveTo(-box.w / 2 - 14, -box.h / 2 + 8);
+            ctx.lineTo(box.w / 2 + 12, -box.h / 2 - 12);
+            ctx.lineTo(box.w / 2 + 18, box.h / 2 + 14);
+            ctx.lineTo(-box.w / 2 - 10, box.h / 2 + 6);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(-box.w / 2, -box.h / 2);
+            ctx.lineTo(box.w / 2, -box.h / 2 + 10);
+            ctx.lineTo(box.w / 2 - 8, box.h / 2);
+            ctx.lineTo(-box.w / 2 + 8, box.h / 2 - 10);
+            ctx.closePath();
+            ctx.clip();
+
+            ctx.drawImage(img, -box.w / 2, -box.h / 2, box.w, box.h);
+            ctx.restore();
+          }
+        } else {
+          const img = imgs[0];
+          const frameW = 470;
+          const frameH = 520;
+          const fx = (W - frameW) / 2;
+          const fy = 185;
+
+          ctx.save();
+          ctx.fillStyle = 'rgba(246, 237, 232, 0.08)';
+          ctx.fillRect(fx - 12, fy - 12, frameW + 24, frameH + 24);
+          ctx.drawImage(img, fx, fy, frameW, frameH);
+          ctx.restore();
+        }
+      }
+
+      ctx.save();
+      currentRenderState.strokes.forEach((st) => {
+        const sx = st.nx * W;
+        const sy = 120 + st.ny * (H - 280);
+        const dynamicLen = st.baseLen * (0.75 + bassEnergy * 1.15);
+
+        ctx.save();
+        ctx.translate(sx, sy);
+        ctx.rotate(st.angle + Math.sin(currentRenderState.beatPhase + st.phaseOffset) * 0.14);
+        ctx.strokeStyle = pal[st.colorIdx % pal.length];
+        ctx.globalAlpha = 0.28 + highEnergy * 0.35;
+        ctx.lineWidth = st.thickness;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(-dynamicLen / 2, 0);
+        ctx.lineTo(dynamicLen / 2, 0);
+        ctx.stroke();
+        ctx.restore();
+      });
+      ctx.restore();
+
+      drawGrainOverlay(W, H, axes.era_grain);
+
+      ctx.save();
+      ctx.fillStyle = 'rgba(14, 7, 8, 0.78)';
+      ctx.fillRect(0, 0, W, 94);
+      ctx.fillRect(0, H - 154, W, 154);
+
+      ctx.fillStyle = pal[0] || '#e89b3c';
+      ctx.font = '600 18px "JetBrains Mono", monospace';
+      ctx.fillText(`SCRAPBOOK // ${entry.date}`, 42, 43);  ctx.fillStyle = 'rgba(246, 237, 232, 0.74)'; ctx.font = '500 15px "JetBrains Mono", monospace'; ctx.fillText(`${axes.estimated_bpm} BPM · ${entry.photos.length} КАДР(А) · ЗЕРНО ${Math.round(axes.era_grain * 100)}%`, 42, 70);
+
+      ctx.fillStyle = '#f6ede8';
+      ctx.font = 'italic 600 40px "Cormorant Garamond", Georgia, serif';
+      ctx.fillText(entry.folder_name, 42, H - 94);
+
+      ctx.fillStyle = pal[0] || '#e89b3c';
+      ctx.font = '500 17px "JetBrains Mono", monospace';
+      ctx.fillText(`♪ ${entry.track.title} —${entry.track.artist}`, 42, H - 46);
+      ctx.restore();
+    }
+
+    function startAudioReactiveLoop() {
+      stopAudioReactiveLoop();
+      if (!audioCtx && audioEl.src) {
+        try {
+          const Ctx = window.AudioContext || window.webkitAudioContext;
+          audioCtx = new Ctx();
+          const source = audioCtx.createMediaElementSource(audioEl);
+          analyser = audioCtx.createAnalyser();
+          analyser.fftSize = 128;
+          freqData = new Uint8Array(analyser.frequencyBinCount);
+          source.connect(analyser);
+          analyser.connect(audioCtx.destination);
+        } catch {}
+      }
+      if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+
+      function loop(now) {
+        let bass = 0.25;
+        let high = 0.2;
+
+        if (analyser && freqData && !audioEl.paused) {
+          analyser.getByteFrequencyData(freqData);
+          const bassSlice = freqData.slice(0, 6);
+          const highSlice = freqData.slice(12, 28);
+          bass = bassSlice.reduce((a, b) => a + b, 0) / (bassSlice.length * 255);
+          high = highSlice.reduce((a, b) => a + b, 0) / (highSlice.length * 255);
+
+          const minBeatGapMs = (60 / (currentRenderState.entry?.axes?.estimated_bpm || 120)) * 1000 * 2;
+          if (bass > 0.64 && now - currentRenderState.lastBeatTime > minBeatGapMs) {
+            currentRenderState.photoIndex += 1;
+            currentRenderState.lastBeatTime = now;
+
+            const cards = document.querySelectorAll('#popoutPhotosStage .popout-polaroid');
+            cards.forEach((c, idx) => c.classList.toggle('beat-pop', idx === (currentRenderState.photoIndex % cards.length)));
+          }
+        }
+
+        currentRenderState.beatPhase += 0.08 + bass * 0.25;
+        renderProyavkaFrame(bass, high);
+        animFrameId = requestAnimationFrame(loop);
+      }
+      animFrameId = requestAnimationFrame(loop);
+    }
+
+    function stopAudioReactiveLoop() {
+      if (animFrameId) cancelAnimationFrame(animFrameId);
+      animFrameId = null;
+      document.querySelectorAll('#popoutPhotosStage .popout-polaroid').forEach((c) => c.classList.remove('beat-pop'));
+    }
+
+    // =========================================================================
+    // 6. ДУДЛИНГ ПРЯМО НА СТРАНИЦЕ
+    // =========================================================================
+    const doodleCanvas = document.getElementById('doodleCanvas');
+    const dCtx = doodleCanvas.getContext('2d');
+    const toggleDoodleBtn = document.getElementById('toggleDoodleBtn');
+    const doodleToolbar = document.getElementById('doodleToolbar');
+
+    let isDoodleMode = false;
+    let isDrawingStroke = false;
+    let activeInkColor = '#e89b3c';
+
+    function syncDoodleCanvasSize(savedDataUrl) {
+      const box = document.getElementById('rightScrapbookPage');
+      doodleCanvas.width = box.clientWidth || 640;
+      doodleCanvas.height = box.clientHeight || 660;
+      dCtx.clearRect(0, 0, doodleCanvas.width, doodleCanvas.height);
+      if (savedDataUrl) {
+        const img = new Image();
+        img.onload = () => dCtx.drawImage(img, 0, 0, doodleCanvas.width, doodleCanvas.height);
+        img.src = savedDataUrl;
+      }
+    }
+
+    toggleDoodleBtn.addEventListener('click', () => {
+      isDoodleMode = !isDoodleMode;
+      doodleCanvas.classList.toggle('drawing-active', isDoodleMode);
+      doodleToolbar.classList.toggle('open', isDoodleMode);
+      toggleDoodleBtn.classList.toggle('amber', isDoodleMode);
+    });
+
+    document.querySelectorAll('.ink-swatch').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.ink-swatch').forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        activeInkColor = btn.dataset.color;
+      });
+    });
+
+    function getPointerPos(ev) {
+      const rect = doodleCanvas.getBoundingClientRect();
+      const clientX = ev.touches ? ev.touches[0].clientX : ev.clientX;
+      const clientY = ev.touches ? ev.touches[0].clientY : ev.clientY;
+      return {
+        x: ((clientX - rect.left) / rect.width) * doodleCanvas.width,
+        y: ((clientY - rect.top) / rect.height) * doodleCanvas.height
+      };
+    }
+
+    doodleCanvas.addEventListener('pointerdown', (ev) => {
+      if (!isDoodleMode) return;
+      isDrawingStroke = true;
+      const pos = getPointerPos(ev);
+      dCtx.strokeStyle = activeInkColor;
+      dCtx.lineWidth = 4;
+      dCtx.lineCap = 'round';
+      dCtx.lineJoin = 'round';
+      dCtx.beginPath();
+      dCtx.moveTo(pos.x, pos.y);
+    });
+
+    doodleCanvas.addEventListener('pointermove', (ev) => {
+      if (!isDoodleMode || !isDrawingStroke) return;
+      const pos = getPointerPos(ev);
+      dCtx.lineTo(pos.x, pos.y);
+      dCtx.stroke();
+    });
+
+    async function persistCurrentDoodle() {
+      if (!isDrawingStroke) return;
+      isDrawingStroke = false;
+      const entry = currentRenderState.entry;
+      if (!entry) return;
+      entry.doodleDataUrl = doodleCanvas.toDataURL('image/png');
+      await putEntry(entry);
+    }
+
+    doodleCanvas.addEventListener('pointerup', persistCurrentDoodle);
+    doodleCanvas.addEventListener('pointerleave', persistCurrentDoodle);
+
+    document.getElementById('clearDoodleBtn').addEventListener('click', async () => {
+      dCtx.clearRect(0, 0, doodleCanvas.width, doodleCanvas.height);
+      const entry = currentRenderState.entry;
+      if (entry) {
+        entry.doodleDataUrl = '';
+        await putEntry(entry);
+      }
+    });
+
+    // =========================================================================
+    // 7. СТАРТОВЫЕ ДНИ (С IPHONE DEPTH-СЛОЯМИ)
+    // =========================================================================
+    function makeProceduralPhoto(c1, c2, c3, label) {
+      const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="800" height="900" viewBox="0 0 800 900">
+          <defs>
+            <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="${c1}"/>
+              <stop offset="48%" stop-color="${c2}"/>
+              <stop offset="100%" stop-color="${c3}"/>
+            </linearGradient>
+          </defs>
+          <rect width="800" height="900" fill="url(#g)"/>
+          <circle cx="580" cy="180" r="85" fill="#fef08a" opacity="0.65"/>
+          <polygon points="80,820 390,260 720,820" fill="#1e1b18" opacity="0.68"/>
+          <polygon points="260,820 550,380 800,820" fill="#0f172a" opacity="0.82"/>
+          <text x="48" y="855" fill="#ffffff" font-family="monospace" font-size="22" opacity="0.8">${label}</text>
+        </svg>`;
+      return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    }
+
+    function fetchItunesTracksJsonp(term) {
+      return new Promise((resolve, reject) => {
+        const cbName = 'itunesCb_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+        const script = document.createElement('script');
+        const timeout = setTimeout(() => { cleanup(); reject(new Error('Timeout')); }, 7000);
+        function cleanup() {
+          clearTimeout(timeout);
+          delete window[cbName];
+          if (script.parentNode) script.parentNode.removeChild(script);
+        }
+        window[cbName] = (data) => { cleanup(); resolve((data && data.results) || []); };
+        script.onerror = () => { cleanup(); reject(new Error('Network error')); };
+        script.src = `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&media=music&entity=song&limit=5&callback=${cbName}`;
+        document.body.appendChild(script);
+      });
+    }
+
+    async function buildPipelineEntry({ date, story, photos, trackQuery, fallbackTrack }) {
+      let track = { ...fallbackTrack };
+      try {
+        const found = await fetchItunesTracksJsonp(trackQuery);
+        const best = found.find((r) => r.previewUrl) || found[0];
+        if (best) {
+          track = {
+            title: best.trackName,
+            artist: best.artistName,
+            genre: best.primaryGenreName || fallbackTrack.genre,
+            releaseYear: best.releaseDate ? Number(best.releaseDate.slice(0, 4)) : fallbackTrack.releaseYear,
+            artwork: (best.artworkUrl100 || '').replace('100x100', '300x300'),
+            previewUrl: best.previewUrl || '',
+            trackViewUrl: best.trackViewUrl || 'https://music.apple.com'
+          };
+        }
+      } catch {}
+
+      const photoStats = await analyzePhotosKMeans(photos, 5);
+      const aiStyle = await analyzeDayWithGeminiOrFallback(story, track, photoStats);
+      const foregroundCutouts = await Promise.all(photos.map((src) => buildForegroundDepthCutout(src)));
+
+      const entry = {
+        date,
+        folder_name: aiStyle.folder_name,
+        paper_theme: aiStyle.paper_theme,
+        story,
+        photos,
+        foregroundCutouts,
+        track,
+        palette: photoStats.palette,
+        axes: aiStyle,
+        weather: aiStyle.weather,
+        stickers: aiStyle.stickers,
+        doodleDataUrl: '',
+        sheetPreviewDataUrl: ''
+      };
+
+      const imgs = await Promise.all(photos.map((src) => loadImageElement(src).catch(() => null)));
+      currentRenderState.entry = entry;
+      currentRenderState.loadedImages = imgs.filter(Boolean);
+      currentRenderState.strokes = seedDeterministicStrokes(entry);
+      renderProyavkaFrame(0.32, 0.25);
+      entry.sheetPreviewDataUrl = canvas.toDataURL('image/png');
+      return entry;
+    }
+
+    async function seedShowcaseDays() {
+      const furmanov = await buildPipelineEntry({
+        date: '2026-07-18',
+        story: 'Летний подъём на пик Фурманова с друзьями: яркое солнце высоко над хребтом, тёплый ветер, смех на привале и панорама гор на весь горизонт.',
+        photos: [
+          makeProceduralPhoto('#0284c7', '#e89b3c', '#10b981', 'FURMANOV PEAK // SUNLIT RIDGE'),
+          makeProceduralPhoto('#ea580c', '#facc15', '#38bdf8', 'FRIENDS SUMMIT // HIGH NOON'),
+          makeProceduralPhoto('#16a34a', '#eab308', '#0ea5e9', 'ALPINE TRAIL // SUMMER LIGHT')
+        ],
+        trackQuery: 'Riton Nightcrawlers Friday',
+        fallbackTrack: {
+          title: 'Friday (feat. Mufasa & Hypeman)',
+          artist: 'Riton & Nightcrawlers',
+          genre: 'Dance',
+          releaseYear: 2021,
+          artwork: '',
+          previewUrl: '',
+          trackViewUrl: 'https://music.apple.com'
+        }
+      });
+
+      const contrastRain = await buildPipelineEntry({
+        date: '2026-07-24',
+        story: 'Тихий ночной дождь за стеклом пустого трамвая после поздней репетиции. Капли стекают по окну, в наушниках медленное старое фортепиано и никого вокруг.',
+        photos: [
+          makeProceduralPhoto('#1e293b', '#334155', '#64748b', 'MIDNIGHT TRAM // RAIN WINDOW'),
+          makeProceduralPhoto('#0f172a', '#475569', '#94a3b8', 'WET REFLECTIONS // NIGHT')
+        ],
+        trackQuery: 'Aphex Twin Avril 14th',
+        fallbackTrack: {
+          title: 'Avril 14th',
+          artist: 'Aphex Twin',
+          genre: 'Ambient Piano',
+          releaseYear: 2001,
+          artwork: '',
+          previewUrl: '',
+          trackViewUrl: 'https://music.apple.com'
+        }
+      });
+
+      const snowDay = await buildPipelineEntry({
+        date: '2026-11-21',
+        story: 'Первый плотный снег вечером, холодный воздух, фонари на катке и тёплый чай в термосе после прогулки.',
+        photos: [
+          makeProceduralPhoto('#38bdf8', '#e2e8f0', '#1e3a8a', 'FIRST SNOW // EVENING LIGHT'),
+          makeProceduralPhoto('#64748b', '#f8fafc', '#0284c7', 'WINTER SKATE // FROST')
+        ],
+        trackQuery: 'Cigarettes After Sex Apocalypse',
+        fallbackTrack: {
+          title: 'Apocalypse',
+          artist: 'Cigarettes After Sex',
+          genre: 'Dream Pop',
+          releaseYear: 2017,
+          artwork: '',
+          previewUrl: '',
+          trackViewUrl: 'https://music.apple.com'
+        }
+      });
+
+      await replaceAllEntries([furmanov, contrastRain, snowDay]);
+    }
+
+    // =========================================================================
+    // 8. ОТРИСОВКА ВЕЕРА PAPER + 3-СЛОЙНЫХ IPHONE DEPTH ПОЛАРОИДОВ
+    // =========================================================================
+    let allEntries = [];
+    let activeDateKey = null;
+    let viewYear = 2026;
+    let viewMonth = 6;
+
+    const MONTH_NAMES = [
+      'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+      'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
+    ];
+
+    const playTrackBtn = document.getElementById('playTrackBtn');
+    const cassetteReel = document.getElementById('cassetteReel');
+
+    function stopPlaybackAndVoice() {
+      audioEl.pause();
+      audioEl.currentTime = 0;
+      stopAudioReactiveLoop();
+      cassetteReel.classList.remove('spinning');
+      playTrackBtn.textContent = '▶ Песня (30с)';
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    }
+
+    function renderFanWings() {
+      const leftWing = document.getElementById('fanWingLeft');
+      const rightWing = document.getElementById('fanWingRight');
+      leftWing.innerHTML = '';
+      rightWing.innerHTML = '';
+
+      const activeIdx = allEntries.findIndex((e) => e.date === activeDateKey);
+      allEntries.forEach((entry, idx) => {
+        if (idx === activeIdx) return;
+        const leaf = document.createElement('div');
+        leaf.className = 'fan-leaf';
+        leaf.style.background = `linear-gradient(180deg, ${entry.palette[0]},${entry.palette[1] || '#28161a'})`;
+        leaf.title = `${entry.date} —${entry.folder_name}`;
+        leaf.addEventListener('click', () => openScrapbookPage(entry.date, idx > activeIdx ? 'next' : 'prev'));
+        if (idx < activeIdx) leftWing.appendChild(leaf);
+        else rightWing.appendChild(leaf);
+      });
+    }
+
+    async function openScrapbookPage(dateKey, flipDir = null) {
+      const entry = allEntries.find((e) => e.date === dateKey) || allEntries[0];
+      if (!entry) return;
+
+      activeDateKey = entry.date;
+      stopPlaybackAndVoice();
+      renderFanWings();
+
+      document.getElementById('journalCounterLabel').textContent = `✓ ${allEntries.length} страниц в скрапбуке`;  const spread = document.getElementById('scrapbookSpread'); spread.className = `scrapbook-spread ${entry.paper_theme || 'paper-cotton'}`;
+      if (flipDir === 'next') {
+        void spread.offsetWidth;
+        spread.classList.add('flip-next');
+      } else if (flipDir === 'prev') {
+        void spread.offsetWidth;
+        spread.classList.add('flip-prev');
+      }
+
+      document.getElementById('tapeTopLeft').style.background = entry.palette[0] + 'aa';
+      document.getElementById('tapeBottomRight').style.background = (entry.palette[1] || entry.palette[0]) + 'aa';
+
+      document.getElementById('scrapDateStamp').textContent = `${entry.date} ·${entry.axes.estimated_bpm} BPM`;
+      document.getElementById('scrapTitle').textContent = entry.folder_name;
+      document.getElementById('scrapNarrative').textContent = entry.story;
+
+      const stickersRow = document.getElementById('scrapStickersRow');
+      stickersRow.innerHTML = '';
+      (entry.stickers || ['✦ ДНЕВНИК ДНЯ']).forEach((txt, i) => {
+        const tag = document.createElement('span');
+        tag.className = 'cutout-tag';
+        tag.style.background = entry.palette[i % entry.palette.length];
+        tag.style.color = '#ffffff';
+        tag.textContent = txt;
+        stickersRow.appendChild(tag);
+      });
+
+      startCornerWeatherAnimation(entry.weather || 'sun', entry.palette[0]);
+
+      // 3-слойные Depth-полароиды (фон -> дата между слоями -> вырезанный передний план)
+      const stage = document.getElementById('popoutPhotosStage');
+      stage.innerHTML = '';
+      const cutouts = entry.foregroundCutouts || entry.photos;
+      entry.photos.forEach((src, idx) => {
+        const fgSrc = cutouts[idx] || src;
+        const card = document.createElement('div');
+        card.className = 'popout-polaroid';
+        card.innerHTML = `
+          <div class="polaroid-tape" style="background:${entry.palette[idx % entry.palette.length]}bb"></div>
+          <div class="depth-viewport">
+            <img class="depth-layer-bg" src="${src}" alt="Фон ${idx + 1}" />
+            <div class="depth-mid-stamp">${entry.date.slice(5)}</div>
+            <img class="depth-layer-fg" src="${fgSrc}" alt="Передний план ${idx + 1}" />
+          </div>
+          <div class="polaroid-caption">depth #0${idx + 1} (клик — оборот)</div>
+        `;
+
+        const bgLayer = card.querySelector('.depth-layer-bg');
+        const midStamp = card.querySelector('.depth-mid-stamp');
+        const fgLayer = card.querySelector('.depth-layer-fg');
+
+        card.addEventListener('mousemove', (ev) => {
+          const rect = card.getBoundingClientRect();
+          const nx = (ev.clientX - rect.left) / rect.width - 0.5;
+          const ny = (ev.clientY - rect.top) / rect.height - 0.5;
+          card.style.transform = `perspective(850px) rotateX(${(-ny * 20).toFixed(1)}deg) rotateY(${(nx * 24).toFixed(1)}deg) translateY(-16px) translateZ(74px) scale(1.1)`;
+          // Разная скорость смещения 3 слоёв как на обоях iPhone
+          bgLayer.style.transform = `translate(${(-nx * 6).toFixed(1)}px,${(-ny * 6).toFixed(1)}px) scale(1.06)`;
+          midStamp.style.transform = `translate(${(nx * 6).toFixed(1)}px,${(ny * 4).toFixed(1)}px)`;
+          fgLayer.style.transform = `translate(${(nx * 16).toFixed(1)}px,${(ny * 14).toFixed(1)}px) scale(1.12)`;
+        });
+
+        card.addEventListener('mouseleave', () => {
+          card.style.transform = '';
+          bgLayer.style.transform = '';
+          midStamp.style.transform = '';
+          fgLayer.style.transform = '';
+        });
+
+        card.addEventListener('click', () => {
+          card.classList.remove('spin-flip');
+          void card.offsetWidth;
+          card.classList.add('spin-flip');
+        });
+
+        stage.appendChild(card);
+      });
+
+      document.getElementById('cassetteTitle').textContent = entry.track.title;
+      document.getElementById('cassetteArtist').textContent = `${entry.track.artist} ·${entry.track.releaseYear || ''}`;
+      document.getElementById('cassetteAppleLink').href = entry.track.trackViewUrl || 'https://music.apple.com';
+      document.getElementById('aiDirectorNote').textContent = entry.axes.explanation || '';
+
+      document.getElementById('paperPaletteBeads').innerHTML = entry.palette
+        .map((hex) => `<span class="palette-bead" style="background:${hex}"></span>`)
+        .join('');
+
+      const imgs = await Promise.all(entry.photos.map((src) => loadImageElement(src).catch(() => null)));
+      currentRenderState.entry = entry;
+      currentRenderState.loadedImages = imgs.filter(Boolean);
+      currentRenderState.photoIndex = 0;
+      currentRenderState.strokes = seedDeterministicStrokes(entry);
+      renderProyavkaFrame(0.32, 0.25);
+
+      if (entry.track.previewUrl) {
+        audioEl.src = entry.track.previewUrl;
+        playTrackBtn.disabled = false;
+      } else {
+        audioEl.removeAttribute('src');
+        playTrackBtn.disabled = true;
+      }
+
+      setTimeout(() => syncDoodleCanvasSize(entry.doodleDataUrl || ''), 60);
+    }
+
+    function renderShelfAndCalendar() {
+      const rack = document.getElementById('vhsRack');
+      rack.innerHTML = '';
+      allEntries.forEach((entry) => {
+        const spine = document.createElement('div');
+        spine.className = 'vhs-spine';
+        spine.style.background = `linear-gradient(180deg, ${entry.palette[0]},${entry.palette[entry.palette.length - 1] || '#1c1214'})`;
+        spine.innerHTML = `
+          <img src="${entry.sheetPreviewDataUrl || entry.photos[0]}" alt="" />
+          <div class="vhs-spine-label">${entry.date} ·${entry.folder_name}</div>
+        `;
+        spine.addEventListener('click', () => {
+          switchMode('book');
+          openScrapbookPage(entry.date);
+        });
+        rack.appendChild(spine);
+      });
+
+      const seriesGrid = document.getElementById('seriesGrid');
+      seriesGrid.innerHTML = '';
+      allEntries.forEach((entry) => {
+        const card = document.createElement('div');
+        card.style.cssText = 'aspect-ratio:4/5; border-radius:12px; overflow:hidden; cursor:pointer; border:1px solid rgba(255,255,255,0.14);';
+        card.innerHTML = `<img src="${entry.sheetPreviewDataUrl \vert{}\vert{} entry.photos[0]}" style="width:100\%; height:100\%; object-fit:cover;" />`; card.addEventListener('click', () => { switchMode('book'); openScrapbookPage(entry.date); }); seriesGrid.appendChild(card); });  document.getElementById('monthTitleLabel').textContent = `${MONTH_NAMES[viewMonth]} ${viewYear}`; const calGrid = document.getElementById('calendarGrid'); calGrid.innerHTML = ''; const firstDay = new Date(viewYear, viewMonth, 1).getDay(); const leadingEmpty = (firstDay + 6) \% 7; const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();  for (let i = 0; i < leadingEmpty; i++) { const empty = document.createElement('div'); empty.className = 'cal-cell'; empty.style.opacity = '0.2'; calGrid.appendChild(empty); }  const byDate = new Map(allEntries.map((e) => [e.date, e])); for (let d = 1; d <= daysInMonth; d++) { const iso = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const entry = byDate.get(iso);
+        const cell = document.createElement('div');
+        cell.className = 'cal-cell' + (entry ? ' has-entry' : '');
+        cell.innerHTML = entry
+          ? `<img src="${entry.sheetPreviewDataUrl \vert{}\vert{} entry.photos[0]}" /><span>${d}</span>`
+          : `<span>${d}</span>`; if (entry) { cell.addEventListener('click', () => { switchMode('book'); openScrapbookPage(iso); }); } calGrid.appendChild(cell); } }  function switchMode(mode) { const isBook = mode === 'book'; document.getElementById('modeBookBtn').classList.toggle('active', isBook); document.getElementById('modeShelfBtn').classList.toggle('active', !isBook); document.getElementById('paperStageView').classList.toggle('hidden', !isBook); document.getElementById('shelfView').classList.toggle('active', !isBook); document.getElementById('paperDock').style.display = isBook ? 'flex' : 'none'; if (!isBook) renderShelfAndCalendar(); }  document.getElementById('modeBookBtn').addEventListener('click', () => switchMode('book')); document.getElementById('modeShelfBtn').addEventListener('click', () => switchMode('shelf'));  playTrackBtn.addEventListener('click', () => { if (!audioEl.src) return; if (audioEl.paused) { audioEl.play().then(() => { cassetteReel.classList.add('spinning'); playTrackBtn.textContent = '❚❚ Пауза'; startAudioReactiveLoop(); }).catch(() => {}); } else { stopPlaybackAndVoice(); renderProyavkaFrame(0.32, 0.25); } });  audioEl.addEventListener('ended', () => { stopPlaybackAndVoice(); renderProyavkaFrame(0.32, 0.25); });  document.getElementById('voiceoverBtn').addEventListener('click', () => { const entry = currentRenderState.entry; if (!entry \vert{}\vert{} !('speechSynthesis' in window)) return; window.speechSynthesis.cancel(); const utter = new SpeechSynthesisUtterance(`${entry.folder_name}. ${entry.story}`); utter.lang = 'ru-RU'; utter.rate = entry.axes.voice_rate \vert{}\vert{} 1.0; utter.pitch = entry.axes.voice_pitch \vert{}\vert{} 1.0; window.speechSynthesis.speak(utter); });  document.getElementById('exportZipBtn').addEventListener('click', async () => { const entry = currentRenderState.entry; if (!entry \vert{}\vert{} typeof JSZip === 'undefined') return; const zip = new JSZip(); const safeName = entry.folder_name.replace(/[\\/:*?"<>\vert{}]/g, '_'); const folder = zip.folder(`${entry.date}_${safeName}`); folder.file('proyavka_4x5.png', canvas.toDataURL('image/png').split(',')[1], { base64: true }); folder.file('story.txt', `${entry.folder_name}\n${entry.date}\n\n${entry.story}`);
+      folder.file('track.json', JSON.stringify({
+        title: entry.track.title,
+        artist: entry.track.artist,
+        releaseYear: entry.track.releaseYear,
+        appleMusicUrl: entry.track.trackViewUrl || 'https://music.apple.com'
+      }, null, 2));
+      entry.photos.forEach((src, i) => {
+        if (src.startsWith('data:image/')) {
+          const ext = src.startsWith('data:image/svg') ? 'svg' : 'png';
+          folder.file(`photo_${i + 1}.${ext}`, src.split(',')[1], { base64: true });
+        }
+      });
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${entry.date}_${safeName}.zip`;
+      a.click();
+    });
+
+    document.getElementById('prevPageBtn').addEventListener('click', () => {
+      const idx = allEntries.findIndex((e) => e.date === activeDateKey);
+      if (idx > 0) openScrapbookPage(allEntries[idx - 1].date, 'prev');
+    });
+
+    document.getElementById('nextPageBtn').addEventListener('click', () => {
+      const idx = allEntries.findIndex((e) => e.date === activeDateKey);
+      if (idx >= 0 && idx < allEntries.length - 1) openScrapbookPage(allEntries[idx + 1].date, 'next');
+    });
+
+    // =========================================================================
+    // 9. МОДАЛКА ДОБАВЛЕНИЯ НОВОЙ СТРАНИЦЫ (БЕЗ РУЧНОГО ВЫБОРА БУМАГИ)
+    // =========================================================================
+    const composerModal = document.getElementById('composerModal');
+    const photosInput = document.getElementById('photosInput');
+    const multiPhotoGrid = document.getElementById('multiPhotoGrid');
+    const errorBanner = document.getElementById('formErrorBanner');
+
+    let pendingPhotos = [];
+    let selectedApiTrack = null;
+
+    function renderMultiPhotoGrid() {
+      multiPhotoGrid.innerHTML = '';
+      pendingPhotos.forEach((src, idx) => {
+        const slot = document.createElement('div');
+        slot.className = 'photo-slot';
+        slot.innerHTML = `<img src="${src}" /><button type="button" class="remove-photo-btn">✕</button>`;
+        slot.querySelector('.remove-photo-btn').addEventListener('click', () => {
+          pendingPhotos.splice(idx, 1);
+          renderMultiPhotoGrid();
+        });
+        multiPhotoGrid.appendChild(slot);
+      });
+
+      if (pendingPhotos.length < 6) {
+        const addBtn = document.createElement('button');
+        addBtn.type = 'button';
+        addBtn.className = 'add-more-slot';
+        addBtn.innerHTML = `<span style="font-size:20px;">+</span><span>Добавить фото (${pendingPhotos.length}/6)</span>`;
+        addBtn.addEventListener('click', () => photosInput.click());
+        multiPhotoGrid.appendChild(addBtn);
+      }
+    }
+
+    document.getElementById('openComposerBtn').addEventListener('click', () => {
+      errorBanner.style.display = 'none';
+      pendingPhotos = [];
+      selectedApiTrack = null;
+      document.getElementById('songResults').innerHTML = '';
+      renderMultiPhotoGrid();
+      composerModal.classList.add('open');
+    });
+
+    document.getElementById('closeComposerBtn').addEventListener('click', () => composerModal.classList.remove('open'));
+
+    function readFileAsDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(r.result);
+        r.onerror = reject;
+        r.readAsDataURL(file);
+      });
+    }
+
+    photosInput.addEventListener('change', async (e) => {
+      const files = Array.from(e.target.files || []);
+      const urls = await Promise.all(files.slice(0, 6 - pendingPhotos.length).map(readFileAsDataUrl));
+      pendingPhotos.push(...urls);
+      photosInput.value = '';
+      renderMultiPhotoGrid();
+    });
+
+    document.getElementById('searchSongBtn').addEventListener('click', async () => {
+      const q = document.getElementById('songQueryInput').value.trim();
+      const box = document.getElementById('songResults');
+      if (!q) return;
+      box.innerHTML = `<div style="font-size:12px; color:var(--ink-muted); padding:6px;">Ищем «${q}»...</div>`;
+      try {
+        const list = await fetchItunesTracksJsonp(q);
+        box.innerHTML = '';
+        list.forEach((tr) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'song-option';
+          const yr = tr.releaseDate ? tr.releaseDate.slice(0, 4) : '';
+          btn.innerHTML = `
+            <img src="${tr.artworkUrl100 || ''}" />
+            <div style="min-width:0; flex:1;">
+              <div style="font-size:12.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${tr.trackName}</div>
+              <div style="font-size:11px; color:var(--ink-muted);">${tr.artistName} (${yr})</div>
+            </div>
+          `;
+          btn.addEventListener('click', () => {
+            document.querySelectorAll('.song-option').forEach((el) => el.classList.remove('selected'));
+            btn.classList.add('selected');
+            selectedApiTrack = {
+              title: tr.trackName,
+              artist: tr.artistName,
+              genre: tr.primaryGenreName || 'Music',
+              releaseYear: yr ? Number(yr) : 2021,
+              artwork: (tr.artworkUrl100 || '').replace('100x100', '300x300'),
+              previewUrl: tr.previewUrl || '',
+              trackViewUrl: tr.trackViewUrl || 'https://music.apple.com'
+            };
+          });
+          box.appendChild(btn);
+        });
+      } catch {
+        box.innerHTML = `<div style="font-size:12px; color:#fca5a5; padding:6px;">Каталог недоступен — загрузите аудиофайл ниже.</div>`;
+      }
+    });
+
+    document.getElementById('newDayForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorBanner.style.display = 'none';
+
+      const dateVal = document.getElementById('dateInput').value;
+      const story = document.getElementById('storyInput').value.trim();
+      const localAudio = document.getElementById('localAudioInput').files[0];
+      const songQuery = document.getElementById('songQueryInput').value.trim();
+
+      if (!dateVal || !story || !pendingPhotos.length) {
+        errorBanner.textContent = 'Заполните дату, запись дня и прикрепите хотя бы 1 фотографию.';
+        errorBanner.style.display = 'block';
+        return;
+      }
+
+      let track = selectedApiTrack;
+      if (!track && songQuery) {
+        try {
+          const found = await fetchItunesTracksJsonp(songQuery);
+          const best = found.find((r) => r.previewUrl) || found[0];
+          if (best) {
+            track = {
+              title: best.trackName,
+              artist: best.artistName,
+              genre: best.primaryGenreName || 'Music',
+              releaseYear: best.releaseDate ? Number(best.releaseDate.slice(0, 4)) : 2021,
+              artwork: (best.artworkUrl100 || '').replace('100x100', '300x300'),
+              previewUrl: best.previewUrl || '',
+              trackViewUrl: best.trackViewUrl || 'https://music.apple.com'
+            };
+          }
+        } catch {}
+      }
+
+      if (localAudio) {
+        const dataUrl = await readFileAsDataUrl(localAudio);
+        track = {
+          title: localAudio.name.replace(/\.[^/.]+$/, ''),
+          artist: 'Локальный аудиофайл',
+          genre: 'Custom Audio',
+          releaseYear: 2026,
+          artwork: track?.artwork || '',
+          previewUrl: dataUrl,
+          trackViewUrl: 'https://music.apple.com'
+        };
+      }
+
+      if (!track) {
+        errorBanner.textContent = 'Выберите песню из поиска или загрузите аудиофайл.';
+        errorBanner.style.display = 'block';
+        return;
+      }
+
+      const submitBtn = document.getElementById('submitDayBtn');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'ИИ подбирает бумагу и проявляет лист...';
+
+      try {
+        const entry = await buildPipelineEntry({
+          date: dateVal,
+          story,
+          photos: [...pendingPhotos],
+          trackQuery: songQuery,
+          fallbackTrack: track
+        });
+
+        await putEntry(entry);
+        allEntries = await getAllEntries();
+
+        document.getElementById('newDayForm').reset();
+        composerModal.classList.remove('open');
+        switchMode('book');
+        openScrapbookPage(dateVal, 'next');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Проявить страницу с помощью ИИ';
+      }
+    });
+
+    document.getElementById('prevMonthBtn').addEventListener('click', () => {
+      viewMonth--;
+      if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+      renderShelfAndCalendar();
+    });
+
+    document.getElementById('nextMonthBtn').addEventListener('click', () => {
+      viewMonth++;
+      if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+      renderShelfAndCalendar();
+    });
+
+    document.getElementById('resetSeedBtn').addEventListener('click', async () => {
+      await seedShowcaseDays();
+      allEntries = await getAllEntries();
+      switchMode('book');
+      openScrapbookPage(allEntries[0].date);
+    });
+
+    (async function init() {
+      updateAiKeyBadge();
+      allEntries = await getAllEntries();
+      if (!allEntries.length) {
+        await seedShowcaseDays();
+        allEntries = await getAllEntries();
+      }
+      openScrapbookPage(allEntries[0].date);
+    })();
+  </script>
+</body>
+</html>
